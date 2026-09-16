@@ -5,7 +5,12 @@
     node: document.getElementById("node-select"),
     message: document.getElementById("message"),
     save: document.getElementById("save-button"),
-    scan: document.getElementById("scan-button"),
+    command: document.getElementById("command-button"),
+    commandPanel: document.getElementById("command-panel"),
+    commandText: document.getElementById("scan-command"),
+    commandExpiry: document.getElementById("command-expiry"),
+    uploadStatus: document.getElementById("upload-status"),
+    copyCommand: document.getElementById("copy-command"),
     timestamps: document.getElementById("timestamps"),
     services: document.getElementById("services-body"),
     domains: document.getElementById("domains-body"),
@@ -21,7 +26,8 @@
   let nodes = {};
   let currentNodeId = "";
   let current = emptyNode();
-  let scannerCommand = "";
+  let activeUpload = null;
+  let uploadPollTimer = 0;
 
   function emptyNode() {
     return { notes: "", services: [], domains: [], ports: [], last_scan: { scanned_at: "", hostname: "", services: [], domains: [], ports: [], warnings: [] }, updated_at: "" };
@@ -239,57 +245,6 @@
     showMessage(successMessage || "已保存", false);
   }
 
-  function decode(value) {
-    try {
-      const bytes = Uint8Array.from(atob(value || ""), function (char) { return char.charCodeAt(0); });
-      return new TextDecoder().decode(bytes);
-    } catch (_error) {
-      return "";
-    }
-  }
-
-  function splitAddress(value) {
-    const source = String(value || "");
-    if (source[0] === "[") {
-      const close = source.lastIndexOf("]:");
-      if (close >= 0) return { bind: source.slice(1, close), port: Number(source.slice(close + 2)) || 0 };
-    }
-    const index = source.lastIndexOf(":");
-    if (index >= 0) return { bind: source.slice(0, index) || "*", port: Number(source.slice(index + 1)) || 0 };
-    return { bind: source, port: 0 };
-  }
-
-  function parseScan(output) {
-    const lines = String(output || "").replace(/\r/g, "").split("\n");
-    const start = lines.indexOf("KOMARI_INVENTORY_V1");
-    const end = lines.indexOf("KOMARI_INVENTORY_END");
-    if (start < 0 || end <= start) throw new Error("扫描输出不完整，目标 Agent 可能禁用了远程控制或缺少 base64 命令");
-    const scan = { scanned_at: new Date().toISOString(), hostname: "", services: [], domains: [], ports: [], warnings: [] };
-    lines.slice(start + 1, end).forEach(function (line) {
-      const parts = line.split("\t");
-      const kind = parts.shift();
-      const fields = parts.map(decode);
-      if (kind === "META") {
-        scan.hostname = fields[0] || "";
-        scan.scanned_at = fields[1] || scan.scanned_at;
-      } else if (kind === "SERVICE") {
-        scan.services.push({ id: uid("svc"), type: fields[0], name: fields[1], state: fields[2], note: fields[3], image: fields[4], ports: fields[5], source: fields[6] || "scan" });
-      } else if (kind === "PORT") {
-        const address = splitAddress(fields[1]);
-        if (address.port) scan.ports.push({ id: uid("port"), protocol: String(fields[0] || "tcp").replace(/[0-9]/g, "").toLowerCase(), bind: address.bind, port: address.port, scope: address.bind === "127.0.0.1" || address.bind === "::1" ? "local" : "unknown", service: fields[2] || "", source: "scan", note: "" });
-      } else if (kind === "DOMAIN") {
-        scan.domains.push({ id: uid("domain"), domain: fields[1] || "", service: fields[2] || "", source: fields[0] || "scan", note: "" });
-      } else if (kind === "WARNING") {
-        scan.warnings.push(fields[0] || "未知扫描警告");
-      }
-    });
-    scan.services = unique(scan.services.filter(applicationService), function (row) { return row.type + "\n" + row.name; });
-    scan.domains = connectDomainsToServices(unique(scan.domains.filter(function (row) { return row.domain && row.domain !== "localhost"; }), function (row) { return row.domain; }), scan.services);
-    scan.ports = scan.ports.concat(extractPublishedPorts(scan.services));
-    scan.ports = compactPorts(scan.ports);
-    return scan;
-  }
-
   function unique(list, key) {
     const seen = new Set();
     return list.filter(function (item) {
@@ -353,61 +308,94 @@
     });
   }
 
-  async function startExec(twoFactorCode) {
-    const params = { command: scannerCommand, clients: [currentNodeId] };
-    if (twoFactorCode) params.two_factor_code = twoFactorCode;
-    return rpc("admin:exec", params);
+  function shellQuote(value) {
+    return "'" + String(value).replace(/'/g, "'\"'\"'") + "'";
   }
 
-  async function waitForTask(taskId) {
-    const deadline = Date.now() + 90000;
-    while (Date.now() < deadline) {
-      try {
-        const result = await rpc("admin:getSpecificTaskResult", { task_id: taskId, uuid: currentNodeId });
-        if (result && result.exit_code !== null && result.exit_code !== undefined) return result;
-      } catch (error) {
-        if (error.code !== -32004 && error.code !== -32602) throw error;
-      }
-      await new Promise(function (resolve) { setTimeout(resolve, 1200); });
-    }
-    throw new Error("扫描任务等待超时（任务 " + taskId + "）；该节点上的某个探测命令可能没有正常退出");
+  function buildUploadCommand(ticket) {
+    if (window.location.protocol !== "https:") throw new Error("为避免凭证泄露，自动上传只允许使用 HTTPS 面板");
+    const scannerURL = window.location.origin + ticket.scanner_path;
+    const submitURL = window.location.origin + ticket.submit_path;
+    return [
+      "scan_file=$(mktemp \"${TMPDIR:-/tmp}/komari-inventory.XXXXXX\") || exit 1",
+      "result_file=$(mktemp \"${TMPDIR:-/tmp}/komari-inventory-result.XXXXXX\") || { rm -f \"$scan_file\"; exit 1; }",
+      "cleanup_inventory_scan() { rm -f \"$scan_file\" \"$result_file\"; }",
+      "trap cleanup_inventory_scan EXIT HUP INT TERM",
+      "curl --proto '=https' --tlsv1.2 -fsS --connect-timeout 10 --max-time 30 " + shellQuote(scannerURL) + " -o \"$scan_file\" || exit 1",
+      "if command -v sha256sum >/dev/null 2>&1; then printf '%s  %s\\n' " + shellQuote(ticket.scanner_sha256) + " \"$scan_file\" | sha256sum -c - >/dev/null; elif command -v shasum >/dev/null 2>&1; then printf '%s  %s\\n' " + shellQuote(ticket.scanner_sha256) + " \"$scan_file\" | shasum -a 256 -c - >/dev/null; else echo '缺少 sha256sum/shasum，已拒绝执行' >&2; exit 1; fi || { echo '扫描脚本校验失败，已拒绝执行' >&2; exit 1; }",
+      "if [ \"$(id -u)\" -eq 0 ]; then sh \"$scan_file\" > \"$result_file\"; elif command -v sudo >/dev/null 2>&1; then sudo sh \"$scan_file\" > \"$result_file\"; else sh \"$scan_file\" > \"$result_file\"; fi || exit 1",
+      "curl --proto '=https' --tlsv1.2 -fsS --connect-timeout 10 --max-time 30 -H " + shellQuote("Authorization: Bearer " + ticket.token) + " -H 'Content-Type: text/plain' --data-binary @\"$result_file\" " + shellQuote(submitURL),
+      "printf '\\n'",
+      "cleanup_inventory_scan",
+      "trap - EXIT HUP INT TERM"
+    ].join("\n");
   }
 
-  async function scan() {
-    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.6", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
-    syncFromTables();
-    ui.scan.disabled = true;
-    ui.node.disabled = true;
-    showMessage("正在请求节点执行一次性扫描…", false);
+  function stopUploadPolling() {
+    if (uploadPollTimer) window.clearTimeout(uploadPollTimer);
+    uploadPollTimer = 0;
+  }
+
+  async function pollUploadStatus() {
+    if (!activeUpload) return;
+    const expected = activeUpload;
     try {
-      let started;
-      try {
-        started = await startExec("");
-      } catch (error) {
-        if (/2fa|two.?factor|verification|动态|验证码/i.test(String(error.message))) {
-          const code = window.prompt("该操作需要 Komari 二次验证，请输入当前 2FA 验证码：");
-          if (!code) throw new Error("已取消扫描");
-          started = await startExec(code.trim());
-        } else {
-          throw error;
-        }
+      const result = await rpc("plugin:inventoryGetUploadStatus", { upload_id: expected.upload_id });
+      if (activeUpload !== expected) return;
+      if (result.status === "completed") {
+        stopUploadPolling();
+        ui.uploadStatus.textContent = "已收到结果，正在刷新…";
+        if (result.node_id === currentNodeId) await loadCurrentNode();
+        ui.uploadStatus.textContent = "结果已导入；请在下方确认需要加入台账的项目";
+        showMessage("服务器扫描完成，结果已自动导入", false);
+        return;
       }
-      showMessage("扫描任务已下发，正在等待节点返回…", false);
-      const task = await waitForTask(started.task_id);
-      if (Number(task.exit_code) !== 0) {
-        const result = String(task.result || "exit " + task.exit_code);
-        if (/Remote control is disabled/i.test(result)) {
-          throw new Error("节点已关闭 Komari Agent 远程控制，无法扫描；请临时启用远程控制后重试，扫描完成即可关闭。");
-        }
-        throw new Error("节点扫描失败：" + result);
+      if (result.status === "failed") {
+        stopUploadPolling();
+        ui.uploadStatus.textContent = "导入失败：" + (result.error || "结果格式错误");
+        showMessage(ui.uploadStatus.textContent, true);
+        return;
       }
-      current.last_scan = parseScan(task.result);
-      await saveCurrent("扫描完成，结果已保存；请勾选需要加入台账的项目");
-      renderScan();
-    } finally {
-      ui.scan.disabled = false;
-      ui.node.disabled = false;
+      if (result.status === "expired" || result.status === "revoked" || result.status === "missing") {
+        stopUploadPolling();
+        ui.uploadStatus.textContent = "命令已失效，请重新生成";
+        return;
+      }
+      ui.uploadStatus.textContent = result.status === "processing" ? "正在导入结果…" : "等待服务器执行命令…";
+    } catch (error) {
+      ui.uploadStatus.textContent = "状态查询暂时失败，将自动重试";
     }
+    uploadPollTimer = window.setTimeout(pollUploadStatus, 1500);
+  }
+
+  async function createUploadCommand() {
+    ui.command.disabled = true;
+    try {
+      const ticket = await rpc("plugin:inventoryCreateUpload", { node_id: currentNodeId });
+      activeUpload = { upload_id: ticket.upload_id, node_id: currentNodeId };
+      ui.commandText.value = buildUploadCommand(ticket);
+      ui.commandExpiry.textContent = "有效期至 " + new Date(ticket.expires_at).toLocaleTimeString();
+      ui.uploadStatus.textContent = "等待服务器执行命令…";
+      ui.commandPanel.hidden = false;
+      stopUploadPolling();
+      pollUploadStatus();
+      showMessage("一次性命令已生成，请复制到所选服务器执行", false);
+    } finally {
+      ui.command.disabled = false;
+    }
+  }
+
+  async function copyUploadCommand() {
+    if (!ui.commandText.value) return;
+    try {
+      await navigator.clipboard.writeText(ui.commandText.value);
+    } catch (_error) {
+      ui.commandText.focus();
+      ui.commandText.select();
+      document.execCommand("copy");
+    }
+    ui.copyCommand.textContent = "已复制";
+    window.setTimeout(function () { ui.copyCommand.textContent = "复制命令"; }, 1500);
   }
 
   function scanRow(type, index, title, secondary, detail, checked) {
@@ -502,9 +490,22 @@
   document.getElementById("add-service").addEventListener("click", function () { syncFromTables(); current.services.push({ id: uid("svc"), name: "", type: "manual", state: "", image: "", ports: "", source: "manual", note: "" }); renderServices(); });
   document.getElementById("add-domain").addEventListener("click", function () { syncFromTables(); current.domains.push({ id: uid("domain"), domain: "", service: "", source: "manual", note: "" }); renderDomains(); });
   document.getElementById("add-port").addEventListener("click", function () { syncFromTables(); current.ports.push({ id: uid("port"), protocol: "tcp", bind: "0.0.0.0", port: 0, scope: "unknown", service: "", source: "manual", note: "" }); renderPorts(); });
-  ui.node.addEventListener("change", async function () { try { syncFromTables(); currentNodeId = ui.node.value; await loadCurrentNode(); } catch (error) { showMessage(error.message, true); } });
+  ui.node.addEventListener("change", async function () {
+    try {
+      syncFromTables();
+      stopUploadPolling();
+      activeUpload = null;
+      ui.commandPanel.hidden = true;
+      ui.commandText.value = "";
+      currentNodeId = ui.node.value;
+      await loadCurrentNode();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  });
   ui.save.addEventListener("click", async function () { ui.save.disabled = true; try { await saveCurrent("台账已保存"); } catch (error) { showMessage(error.message, true); } finally { ui.save.disabled = false; } });
-  ui.scan.addEventListener("click", async function () { try { await scan(); } catch (error) { showMessage(error.message, true); } });
+  ui.command.addEventListener("click", async function () { try { await createUploadCommand(); } catch (error) { showMessage(error.message, true); } });
+  ui.copyCommand.addEventListener("click", copyUploadCommand);
   ui.importSelected.addEventListener("click", importSelected);
 
   loadNodes().catch(function (error) { showMessage("加载失败：" + error.message, true); });

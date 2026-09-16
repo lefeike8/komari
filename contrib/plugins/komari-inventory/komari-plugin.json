@@ -6,15 +6,17 @@
   },
   "short": "komari-inventory",
   "description": {
-    "zh-CN": "为每个节点手工维护服务、域名和端口，并按需执行一次性只读扫描。",
-    "en": "Maintain services, domains, and ports for each node with optional one-shot read-only scans."
+    "zh-CN": "为每个节点手工维护服务、域名和端口，并通过一次性命令安全导入只读扫描结果。",
+    "en": "Maintain node inventory and safely import read-only scans with single-use commands."
   },
   "author": "a1",
-  "version": "0.2.6",
+  "version": "0.3.1",
   "entry": "script.js",
   "komari": ">1.4.3",
   "permissions": {
     "node": true,
+    "allowRoutes": true,
+    "maxHTTPBodyBytes": 524288,
     "timeout": 15
   },
   "pages": [

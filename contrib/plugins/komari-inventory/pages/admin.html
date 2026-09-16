@@ -5,7 +5,7 @@
   <header class="inventory-header">
     <div>
       <h1>资产台账</h1>
-      <p>手工维护节点上的服务、域名和端口；需要时执行一次只读扫描。</p>
+      <p>手工维护节点上的服务、域名和端口；按需从服务器单向提交只读扫描结果。</p>
     </div>
     <div class="inventory-node-picker">
       <label for="node-select">节点</label>
@@ -17,8 +17,24 @@
 
   <section class="inventory-actions" aria-label="操作">
     <button id="save-button" class="primary" type="button">保存台账</button>
-    <button id="scan-button" type="button">扫描一次</button>
+    <button id="command-button" type="button">生成服务器扫描命令</button>
     <span id="timestamps"></span>
+  </section>
+
+  <section id="command-panel" class="inventory-panel inventory-command-panel" hidden>
+    <div class="inventory-section-heading">
+      <div>
+        <h2>一次性安全扫描</h2>
+        <p>复制到当前节点执行。凭证 5 分钟内有效且只能使用一次；Komari 不会获得 SSH 或远程执行权限。</p>
+      </div>
+      <button id="copy-command" class="primary" type="button">复制命令</button>
+    </div>
+    <textarea id="scan-command" class="inventory-command" rows="7" readonly spellcheck="false" aria-label="一次性服务器扫描命令"></textarea>
+    <div class="inventory-command-meta">
+      <span id="command-expiry"></span>
+      <span id="upload-status"></span>
+    </div>
+    <p class="inventory-security-note">命令会先下载扫描脚本并核对固定 SHA-256，校验成功后才运行。非 root 用户可能收到本机 sudo 提示，以便只读查看 Docker 和代理配置；密码不会提交到面板。</p>
   </section>
 
   <section class="inventory-panel">
@@ -87,5 +103,5 @@
   </section>
 </div>
 
-<link rel="stylesheet" href="./admin.css?v=0.2.6">
-<script src="./admin.js?v=0.2.6"></script>
+<link rel="stylesheet" href="./admin.css?v=0.3.1">
+<script src="./admin.js?v=0.3.1"></script>

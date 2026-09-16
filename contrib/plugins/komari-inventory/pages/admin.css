@@ -45,6 +45,10 @@ th, td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom:
 th { color: var(--inv-muted); font-size: 13px; font-weight: 500; }
 td:last-child, th:last-child { width: 56px; text-align: right; }
 .inventory-warnings { margin-bottom: 12px; padding: 10px 12px; background: var(--inv-warning); border-radius: 8px; }
+.inventory-command-panel { border-color: color-mix(in srgb, var(--inv-primary) 38%, var(--inv-border)); }
+.inventory-command { min-height: 150px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre; }
+.inventory-command-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-top: 10px; color: var(--inv-muted); font-size: 13px; }
+.inventory-security-note { font-size: 13px; }
 .scan-group { margin-top: 18px; }
 .scan-group h3 { margin: 0 0 8px; font-size: 15px; }
 .scan-row { display: grid; grid-template-columns: 28px minmax(140px, 1.1fr) minmax(120px, .8fr) minmax(160px, 1.5fr); gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--inv-border); }
