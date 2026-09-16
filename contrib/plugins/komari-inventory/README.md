@@ -17,6 +17,7 @@ Komari 管理端插件，用于按节点维护服务、域名、端口和备注�
 - `/etc/systemd/system` 中正在运行的自建服务，以及 Nginx / Caddy / Apache Web 入口（过滤探针 Agent 和系统服务）
 - Docker / Podman 对外映射端口
 - Nginx `server_name`
+- Nginx 配置中的 `listen` 端口（归到 Nginx 服务，不扫描整机监听列表）
 - Caddyfile 顶层站点地址
 - Docker 中使用默认 `/etc/caddy/Caddyfile` 的 Caddy 站点及反向代理目标
 - Nginx Proxy Manager 中已启用的代理域名（通过容器内置 Node.js 只读查询 SQLite）

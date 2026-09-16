@@ -276,7 +276,7 @@
         scan.services.push({ id: uid("svc"), type: fields[0], name: fields[1], state: fields[2], note: fields[3], image: fields[4], ports: fields[5], source: fields[6] || "scan" });
       } else if (kind === "PORT") {
         const address = splitAddress(fields[1]);
-        if (address.port) scan.ports.push({ id: uid("port"), protocol: String(fields[0] || "tcp").replace(/[0-9]/g, "").toLowerCase(), bind: address.bind, port: address.port, scope: address.bind === "127.0.0.1" || address.bind === "::1" ? "local" : "unknown", service: "", source: "scan", note: fields[2] || "" });
+        if (address.port) scan.ports.push({ id: uid("port"), protocol: String(fields[0] || "tcp").replace(/[0-9]/g, "").toLowerCase(), bind: address.bind, port: address.port, scope: address.bind === "127.0.0.1" || address.bind === "::1" ? "local" : "unknown", service: fields[2] || "", source: "scan", note: "" });
       } else if (kind === "DOMAIN") {
         scan.domains.push({ id: uid("domain"), domain: fields[1] || "", service: fields[2] || "", source: fields[0] || "scan", note: "" });
       } else if (kind === "WARNING") {
@@ -374,7 +374,7 @@
   }
 
   async function scan() {
-    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.4", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
+    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.6", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
     syncFromTables();
     ui.scan.disabled = true;
     ui.node.disabled = true;
@@ -457,7 +457,10 @@
     ui.scanPanel.hidden = false;
     scan.services = (scan.services || []).filter(applicationService);
     scan.domains = connectDomainsToServices(scan.domains || [], scan.services);
-    scan.ports = compactPorts((scan.ports || []).filter(function (item) { return item.source === "docker" || item.source === "podman"; }).concat(extractPublishedPorts(scan.services)));
+    const serviceNames = new Set(scan.services.map(function (item) { return item.name; }));
+    scan.ports = compactPorts((scan.ports || []).filter(function (item) {
+      return item.source === "docker" || item.source === "podman" || (item.source === "scan" && serviceNames.has(item.service));
+    }).concat(extractPublishedPorts(scan.services)));
     ui.scanSummary.textContent = (scan.hostname ? scan.hostname + " · " : "") + new Date(scan.scanned_at).toLocaleString() + "；发现 " + scan.services.length + " 个应用、" + scan.domains.length + " 个域名、" + scan.ports.length + " 个相关端口。";
     const warnings = Array.isArray(scan.warnings) ? scan.warnings : [];
     ui.scanWarnings.hidden = !warnings.length;

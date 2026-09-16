@@ -218,7 +218,9 @@ scan_nginx() {
   done
 }
 
-scan_nginx | awk '
+nginx_config=$(scan_nginx)
+
+printf '%s\n' "$nginx_config" | awk '
   {
     sub(/#.*/, "", $0)
     if ($0 ~ /server_name[[:space:]]/) {
@@ -231,6 +233,26 @@ scan_nginx | awk '
   }
 ' | sed '/^$/d; /^_/d; /^localhost$/d' | sort -u | head -n 400 | while IFS= read -r domain; do
   record DOMAIN "nginx" "$domain" ""
+done
+
+printf '%s\n' "$nginx_config" | awk '
+  {
+    sub(/#.*/, "", $0)
+    if ($0 ~ /^[[:space:]]*listen[[:space:]]+/) {
+      line=$0
+      sub(/^[[:space:]]*listen[[:space:]]+/, "", line)
+      sub(/;.*/, "", line)
+      count=split(line, parts, /[[:space:]]+/)
+      endpoint=parts[1]
+      if (endpoint == "" || endpoint ~ /^unix:/) next
+      protocol="tcp"
+      for (i=2; i<=count; i++) if (parts[i] == "quic") protocol="udp"
+      if (endpoint ~ /^[0-9]+$/) endpoint="*:" endpoint
+      print protocol "\t" endpoint
+    }
+  }
+' | sort -u | head -n 100 | while IFS="$(printf '\t')" read -r protocol endpoint; do
+  [ -n "$endpoint" ] && record PORT "$protocol" "$endpoint" "nginx"
 done
 
 if [ -r /etc/caddy/Caddyfile ]; then
