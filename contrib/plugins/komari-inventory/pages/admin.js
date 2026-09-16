@@ -333,7 +333,9 @@
       if (!target) return;
       try {
         const hostname = new URL(target).hostname;
-        const matched = services.find(function (service) { return service.name === hostname; });
+        const matched = services.find(function (service) {
+          return service.name === hostname || service.name.endsWith("-" + hostname);
+        });
         if (matched) {
           domain.service = matched.name;
           domain.note = target;
@@ -372,7 +374,7 @@
   }
 
   async function scan() {
-    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.1", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
+    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.2", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
     syncFromTables();
     ui.scan.disabled = true;
     ui.node.disabled = true;
@@ -392,7 +394,13 @@
       }
       showMessage("扫描任务已下发，正在等待节点返回…", false);
       const task = await waitForTask(started.task_id);
-      if (Number(task.exit_code) !== 0) throw new Error("节点扫描失败：" + (task.result || "exit " + task.exit_code));
+      if (Number(task.exit_code) !== 0) {
+        const result = String(task.result || "exit " + task.exit_code);
+        if (/Remote control is disabled/i.test(result)) {
+          throw new Error("节点已关闭 Komari Agent 远程控制，无法扫描；请临时启用远程控制后重试，扫描完成即可关闭。");
+        }
+        throw new Error("节点扫描失败：" + result);
+      }
       current.last_scan = parseScan(task.result);
       await saveCurrent("扫描完成，结果已保存；请勾选需要加入台账的项目");
       renderScan();

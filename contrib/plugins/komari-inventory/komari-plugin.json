@@ -10,7 +10,7 @@
     "en": "Maintain services, domains, and ports for each node with optional one-shot read-only scans."
   },
   "author": "a1",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "entry": "script.js",
   "komari": ">1.4.3",
   "permissions": {

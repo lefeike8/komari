@@ -34,6 +34,55 @@ record() {
   printf '\n'
 }
 
+emit_caddy_domains() {
+  source_name=$1
+  awk '
+    function flush_sites(    i, domain) {
+      if (!active) return
+      for (i = 1; i <= site_count; i++) {
+        domain = sites[i]
+        sub(/^https?:\/\//, "", domain)
+        sub(/:.*/, "", domain)
+        if (domain != "" && domain != "localhost") print domain "\t" target
+      }
+      delete sites
+      site_count = 0
+      target = ""
+      active = 0
+    }
+    /^[^[:space:]#][^{]*\{/ {
+      flush_sites()
+      line = $0
+      sub(/#.*/, "", line)
+      sub(/\{.*/, "", line)
+      gsub(/,/, " ", line)
+      count = split(line, parts, /[[:space:]]+/)
+      for (i = 1; i <= count; i++) {
+        if (parts[i] == "" || parts[i] ~ /^\(/ || parts[i] ~ /^:/) continue
+        sites[++site_count] = parts[i]
+      }
+      active = site_count > 0
+      next
+    }
+    active && /^[[:space:]]*reverse_proxy[[:space:]]+/ && target == "" {
+      line = $0
+      sub(/#.*/, "", line)
+      sub(/^[[:space:]]*reverse_proxy[[:space:]]+/, "", line)
+      count = split(line, parts, /[[:space:]]+/)
+      for (i = 1; i <= count; i++) {
+        if (parts[i] == "" || parts[i] ~ /^\//) continue
+        target = parts[i]
+        break
+      }
+      if (target != "" && target !~ /^[[:alpha:]][[:alnum:]+.-]*:\/\// && target !~ /^unix\//) target = "http://" target
+    }
+    active && /^}/ { flush_sites() }
+    END { flush_sites() }
+  ' | head -n 400 | while IFS="$(printf '\t')" read -r domain target; do
+    [ -n "$domain" ] && record DOMAIN "$source_name" "$domain" "$target"
+  done
+}
+
 printf 'KOMARI_INVENTORY_V1\n'
 record META "$(hostname 2>/dev/null || uname -n)" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
 
@@ -81,6 +130,15 @@ if command -v docker >/dev/null 2>&1; then
                 done
               else
                 record WARNING "发现 Nginx Proxy Manager，但无法在 10 秒内只读查询其 SQLite 数据库。"
+              fi
+              ;;
+            *[Cc]addy*)
+              caddy_file=$(limited 8 docker exec "$container_name" cat /etc/caddy/Caddyfile 2>/dev/null)
+              caddy_status=$?
+              if [ "$caddy_status" -eq 0 ]; then
+                printf '%s\n' "$caddy_file" | emit_caddy_domains "caddy:$container_name"
+              else
+                record WARNING "发现 Caddy 容器 $container_name，但无法在 8 秒内只读读取默认 Caddyfile。"
               fi
               ;;
           esac
@@ -134,21 +192,7 @@ scan_nginx | awk '
 done
 
 if [ -r /etc/caddy/Caddyfile ]; then
-  awk '
-    /^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
-    /^[^[:space:]].*\{/ {
-      line=$0
-      sub(/\{.*/, "", line)
-      gsub(/,/, " ", line)
-      gsub(/[[:space:]]+/, "\n", line)
-      print line
-    }
-  ' /etc/caddy/Caddyfile | sed '/^$/d; /^:/d' | sort -u | head -n 400 | while IFS= read -r domain; do
-    domain=${domain#http://}
-    domain=${domain#https://}
-    domain=${domain%%:*}
-    [ -n "$domain" ] && record DOMAIN "caddy" "$domain" ""
-  done
+  emit_caddy_domains "caddy" < /etc/caddy/Caddyfile
 fi
 
 printf 'KOMARI_INVENTORY_END\n'
