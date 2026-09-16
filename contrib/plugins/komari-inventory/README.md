@@ -14,13 +14,14 @@ Komari 管理端插件，用于按节点维护服务、域名、端口和备注�
 ## 当前扫描范围（应用视角）
 
 - 当前正在运行的 Docker / Podman 容器（取决于 Agent 账户权限）
+- `/etc/systemd/system` 中正在运行的自建服务，以及 Nginx / Caddy / Apache Web 入口（过滤探针 Agent 和系统服务）
 - Docker / Podman 对外映射端口
 - Nginx `server_name`
 - Caddyfile 顶层站点地址
 - Docker 中使用默认 `/etc/caddy/Caddyfile` 的 Caddy 站点及反向代理目标
 - Nginx Proxy Manager 中已启用的代理域名（通过容器内置 Node.js 只读查询 SQLite）
 
-默认不展示 systemd/OpenRC、SSH、cron、dbus、apt 等操作系统组件，避免把几十上百个系统单元误当成业务服务。不扫描整个文件系统，不读取环境变量，不收集访问活跃度，也不判断云安全组或公网可达性。未容器化的业务服务可以手工加入台账。
+默认不展示 SSH、cron、dbus、apt 等操作系统组件，避免把几十上百个系统单元误当成业务服务。不扫描整个文件系统，不读取环境变量，不收集访问活跃度，也不判断云安全组或公网可达性。未被识别的业务服务可以手工加入台账。
 
 所有外部探测命令均设置短超时；单个组件异常不会让整次扫描永久挂起。扫描候选默认勾选应用服务、域名和容器映射端口，由管理员确认后导入。
 

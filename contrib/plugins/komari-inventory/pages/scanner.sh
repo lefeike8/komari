@@ -86,6 +86,36 @@ emit_caddy_domains() {
 printf 'KOMARI_INVENTORY_V1\n'
 record META "$(hostname 2>/dev/null || uname -n)" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
 
+emit_systemd_app() {
+  unit=$1
+  case "$unit" in
+    komari-agent.service|nezha-agent.service|mmw-agent.service|rc-local.service|osbuild-*.service) return ;;
+  esac
+  state=$(limited 4 systemctl is-active "$unit" 2>/dev/null)
+  [ "$state" = "active" ] || return
+  description=$(limited 4 systemctl show -p Description --value "$unit" 2>/dev/null)
+  name=${unit%.service}
+  record SERVICE "systemd" "$name" "running" "$description" "" "" "systemd"
+}
+
+# Only include custom units stored directly in /etc/systemd/system plus common
+# web entry points. This finds user applications without listing every OS unit.
+if command -v systemctl >/dev/null 2>&1; then
+  for unit_file in /etc/systemd/system/*.service; do
+    [ -e "$unit_file" ] || [ -L "$unit_file" ] || continue
+    if [ -L "$unit_file" ]; then
+      unit_target=$(readlink -f "$unit_file" 2>/dev/null || true)
+      case "$unit_target" in
+        /lib/systemd/system/*|/usr/lib/systemd/system/*) continue ;;
+      esac
+    fi
+    emit_systemd_app "$(basename "$unit_file")"
+  done
+  for web_unit in nginx.service caddy.service apache2.service httpd.service; do
+    emit_systemd_app "$web_unit"
+  done
+fi
+
 if command -v docker >/dev/null 2>&1; then
   docker_rows=$(limited 12 docker ps --format '{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.service"}}' 2>/dev/null)
   docker_status=$?
@@ -167,9 +197,21 @@ if command -v podman >/dev/null 2>&1; then
 fi
 
 scan_nginx() {
-  if command -v nginx >/dev/null 2>&1; then
-    limited 10 nginx -T 2>/dev/null
-    return
+  nginx_binary=$(command -v nginx 2>/dev/null || true)
+  if [ -z "$nginx_binary" ]; then
+    for candidate in /usr/sbin/nginx /usr/local/sbin/nginx; do
+      if [ -x "$candidate" ]; then
+        nginx_binary=$candidate
+        break
+      fi
+    done
+  fi
+  if [ -n "$nginx_binary" ]; then
+    nginx_output=$(limited 10 "$nginx_binary" -T 2>/dev/null)
+    if [ -n "$nginx_output" ]; then
+      printf '%s\n' "$nginx_output"
+      return
+    fi
   fi
   for file in /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf /etc/nginx/sites-enabled/*; do
     [ -r "$file" ] && printf '\n' && sed -n '1,5000p' "$file"

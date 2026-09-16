@@ -301,7 +301,7 @@
   }
 
   function applicationService(service) {
-    return service && (service.type === "docker" || service.type === "podman");
+    return service && (service.type === "docker" || service.type === "podman" || service.type === "systemd");
   }
 
   function extractPublishedPorts(services) {
@@ -374,7 +374,7 @@
   }
 
   async function scan() {
-    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.2", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
+    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.4", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
     syncFromTables();
     ui.scan.disabled = true;
     ui.node.disabled = true;
@@ -463,7 +463,11 @@
     ui.scanWarnings.hidden = !warnings.length;
     ui.scanWarnings.textContent = warnings.join("\n");
     ui.scanResults.textContent = "";
-    ui.scanResults.appendChild(scanGroup("应用服务", scan.services || [], "services", function (item) { return [item.name, item.type === "docker" ? "Docker 应用" : "Podman 应用", [item.image, item.ports].filter(Boolean).join(" · ")]; }, function () { return true; }));
+    ui.scanResults.appendChild(scanGroup("应用服务", scan.services || [], "services", function (item) {
+      const typeLabel = item.type === "docker" ? "Docker 应用" : item.type === "podman" ? "Podman 应用" : "系统服务";
+      const detail = item.type === "systemd" ? item.note : [item.image, item.ports].filter(Boolean).join(" · ");
+      return [item.name, typeLabel, detail];
+    }, function () { return true; }));
     ui.scanResults.appendChild(scanGroup("域名候选", scan.domains || [], "domains", function (item) { return [item.domain, item.source, item.service || "等待人工关联服务"]; }, function () { return true; }));
     ui.scanResults.appendChild(scanGroup("相关端口", scan.ports || [], "ports", function (item) { return [String(item.port), item.protocol.toUpperCase() + " · " + (item.scope === "local" ? "仅本机" : "所有网卡"), item.service || "等待人工关联服务"]; }, function () { return true; }));
   }
