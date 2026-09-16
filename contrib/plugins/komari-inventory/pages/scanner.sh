@@ -37,40 +37,8 @@ record() {
 printf 'KOMARI_INVENTORY_V1\n'
 record META "$(hostname 2>/dev/null || uname -n)" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
 
-if command -v systemctl >/dev/null 2>&1; then
-  service_rows=$(limited 10 systemctl list-units --type=service --all --no-legend --no-pager --plain 2>/dev/null)
-  service_status=$?
-  if [ "$service_status" -eq 124 ] || [ "$service_status" -eq 137 ]; then
-    record WARNING "systemd 服务扫描超时，已跳过。"
-  fi
-  printf '%s\n' "$service_rows" | head -n 400 | while IFS= read -r row; do
-    row=$(printf '%s' "$row" | sed 's/^[[:space:]●*]*//')
-    set -- $row
-    unit=${1:-}
-    load=${2:-}
-    active=${3:-}
-    sub=${4:-}
-    if [ -z "$unit" ] || [ "$load" = "not-found" ]; then
-      continue
-    fi
-    shift 4 2>/dev/null || true
-    record SERVICE "systemd" "$unit" "$active/$sub" "$*" "" "" "systemd"
-  done
-elif command -v rc-status >/dev/null 2>&1; then
-  service_rows=$(limited 10 rc-status --all 2>/dev/null)
-  service_status=$?
-  if [ "$service_status" -eq 124 ] || [ "$service_status" -eq 137 ]; then
-    record WARNING "OpenRC 服务扫描超时，已跳过。"
-  fi
-  printf '%s\n' "$service_rows" | head -n 300 | while IFS= read -r row; do
-    name=$(printf '%s' "$row" | awk '{print $1}')
-    state=$(printf '%s' "$row" | sed -n 's/.*\[ *\([^]]*\) *\].*/\1/p')
-    [ -n "$name" ] && record SERVICE "openrc" "$name" "$state" "" "" "" "openrc"
-  done
-fi
-
 if command -v docker >/dev/null 2>&1; then
-  docker_rows=$(limited 12 docker ps -a --format '{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.service"}}' 2>/dev/null)
+  docker_rows=$(limited 12 docker ps --format '{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.service"}}' 2>/dev/null)
   docker_status=$?
   if [ "$docker_status" -eq 0 ]; then
     printf '%s\n' "$docker_rows" | head -n 400 | while IFS='|' read -r name image state status ports project compose_service; do
@@ -126,12 +94,10 @@ if command -v docker >/dev/null 2>&1; then
   else
     record WARNING "Docker 已安装，但 Komari Agent 无法读取 Docker。"
   fi
-else
-  record WARNING "Docker 未安装。"
 fi
 
 if command -v podman >/dev/null 2>&1; then
-  podman_rows=$(limited 12 podman ps -a --format '{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}' 2>/dev/null)
+  podman_rows=$(limited 12 podman ps --format '{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}' 2>/dev/null)
   podman_status=$?
   if [ "$podman_status" -eq 0 ]; then
     printf '%s\n' "$podman_rows" | head -n 400 | while IFS='|' read -r name image state status ports; do
@@ -140,28 +106,6 @@ if command -v podman >/dev/null 2>&1; then
   elif [ "$podman_status" -eq 124 ] || [ "$podman_status" -eq 137 ]; then
     record WARNING "Podman 扫描超时，已跳过。"
   fi
-fi
-
-if command -v ss >/dev/null 2>&1; then
-  port_rows=$(limited 10 ss -H -lntuap 2>/dev/null)
-  port_status=$?
-  if [ "$port_status" -eq 124 ] || [ "$port_status" -eq 137 ]; then
-    record WARNING "监听端口扫描超时，已跳过。"
-  fi
-  printf '%s\n' "$port_rows" | head -n 600 | while read -r proto state recvq sendq local_addr peer_addr process_info; do
-    [ -n "$proto" ] && [ -n "$local_addr" ] && record PORT "$proto" "$local_addr" "$process_info"
-  done
-elif command -v netstat >/dev/null 2>&1; then
-  port_rows=$(limited 10 netstat -lntuap 2>/dev/null)
-  port_status=$?
-  if [ "$port_status" -eq 124 ] || [ "$port_status" -eq 137 ]; then
-    record WARNING "监听端口扫描超时，已跳过。"
-  fi
-  printf '%s\n' "$port_rows" | tail -n +3 | head -n 600 | while read -r proto recvq sendq local_addr foreign_addr state process_info; do
-    record PORT "$proto" "$local_addr" "$process_info"
-  done
-else
-  record WARNING "未找到 ss 或 netstat，无法扫描监听端口。"
 fi
 
 scan_nginx() {

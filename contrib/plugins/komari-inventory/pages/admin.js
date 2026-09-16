@@ -283,9 +283,10 @@
         scan.warnings.push(fields[0] || "未知扫描警告");
       }
     });
-    scan.services = unique(scan.services, function (row) { return row.type + "\n" + row.name; });
-    scan.domains = unique(scan.domains.filter(function (row) { return row.domain && row.domain !== "localhost"; }), function (row) { return row.domain; });
-    scan.ports = unique(scan.ports, function (row) { return row.protocol + "\n" + row.bind + "\n" + row.port; });
+    scan.services = unique(scan.services.filter(applicationService), function (row) { return row.type + "\n" + row.name; });
+    scan.domains = connectDomainsToServices(unique(scan.domains.filter(function (row) { return row.domain && row.domain !== "localhost"; }), function (row) { return row.domain; }), scan.services);
+    scan.ports = scan.ports.concat(extractPublishedPorts(scan.services));
+    scan.ports = compactPorts(scan.ports);
     return scan;
   }
 
@@ -296,6 +297,57 @@
       if (seen.has(value)) return false;
       seen.add(value);
       return true;
+    });
+  }
+
+  function applicationService(service) {
+    return service && (service.type === "docker" || service.type === "podman");
+  }
+
+  function extractPublishedPorts(services) {
+    const ports = [];
+    services.forEach(function (service) {
+      const value = String(service.ports || "");
+      const pattern = /(?:\[([^\]]+)\]|([0-9a-fA-F:.*]+)):(\d+)->(\d+)\/(tcp|udp)/gi;
+      let match;
+      while ((match = pattern.exec(value)) !== null) {
+        const bind = match[1] || match[2] || "*";
+        ports.push({
+          id: uid("port"),
+          protocol: match[5].toLowerCase(),
+          bind: bind,
+          port: Number(match[3]),
+          scope: bind === "127.0.0.1" || bind === "::1" ? "local" : "unknown",
+          service: service.name,
+          source: service.type,
+          note: "容器内端口 " + match[4]
+        });
+      }
+    });
+    return ports;
+  }
+
+  function connectDomainsToServices(domains, services) {
+    domains.forEach(function (domain) {
+      const target = String(domain.service || "");
+      if (!target) return;
+      try {
+        const hostname = new URL(target).hostname;
+        const matched = services.find(function (service) { return service.name === hostname; });
+        if (matched) {
+          domain.service = matched.name;
+          domain.note = target;
+        }
+      } catch (_error) {
+        // Keep non-URL targets unchanged for manual confirmation.
+      }
+    });
+    return domains;
+  }
+
+  function compactPorts(ports) {
+    return unique(ports, function (row) {
+      return row.protocol + "\n" + row.port + "\n" + row.service + "\n" + row.scope;
     });
   }
 
@@ -320,7 +372,7 @@
   }
 
   async function scan() {
-    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
+    if (!scannerCommand) scannerCommand = await fetch("./scanner.sh?v=0.2.1", { credentials: "same-origin" }).then(function (response) { if (!response.ok) throw new Error("无法读取扫描脚本"); return response.text(); });
     syncFromTables();
     ui.scan.disabled = true;
     ui.node.disabled = true;
@@ -395,14 +447,17 @@
       return;
     }
     ui.scanPanel.hidden = false;
-    ui.scanSummary.textContent = (scan.hostname ? scan.hostname + " · " : "") + new Date(scan.scanned_at).toLocaleString() + "；扫描结果只代表当时状态。";
+    scan.services = (scan.services || []).filter(applicationService);
+    scan.domains = connectDomainsToServices(scan.domains || [], scan.services);
+    scan.ports = compactPorts((scan.ports || []).filter(function (item) { return item.source === "docker" || item.source === "podman"; }).concat(extractPublishedPorts(scan.services)));
+    ui.scanSummary.textContent = (scan.hostname ? scan.hostname + " · " : "") + new Date(scan.scanned_at).toLocaleString() + "；发现 " + scan.services.length + " 个应用、" + scan.domains.length + " 个域名、" + scan.ports.length + " 个相关端口。";
     const warnings = Array.isArray(scan.warnings) ? scan.warnings : [];
     ui.scanWarnings.hidden = !warnings.length;
     ui.scanWarnings.textContent = warnings.join("\n");
     ui.scanResults.textContent = "";
-    ui.scanResults.appendChild(scanGroup("服务候选", scan.services || [], "services", function (item) { return [item.name, item.type + " · " + item.state, [item.image, item.ports, item.note].filter(Boolean).join(" · ")]; }, function (item) { return item.type === "docker" || item.type === "podman"; }));
+    ui.scanResults.appendChild(scanGroup("应用服务", scan.services || [], "services", function (item) { return [item.name, item.type === "docker" ? "Docker 应用" : "Podman 应用", [item.image, item.ports].filter(Boolean).join(" · ")]; }, function () { return true; }));
     ui.scanResults.appendChild(scanGroup("域名候选", scan.domains || [], "domains", function (item) { return [item.domain, item.source, item.service || "等待人工关联服务"]; }, function () { return true; }));
-    ui.scanResults.appendChild(scanGroup("监听端口", scan.ports || [], "ports", function (item) { return [String(item.port), item.protocol.toUpperCase() + " · " + item.bind, item.note || "未识别进程"]; }, function () { return true; }));
+    ui.scanResults.appendChild(scanGroup("相关端口", scan.ports || [], "ports", function (item) { return [String(item.port), item.protocol.toUpperCase() + " · " + (item.scope === "local" ? "仅本机" : "所有网卡"), item.service || "等待人工关联服务"]; }, function () { return true; }));
   }
 
   function importSelected() {
