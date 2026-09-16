@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/komari-monitor/plugin-sdk/main/schema/komari-plugin.schema.json",
+  "name": {
+    "zh-CN": "资产台账",
+    "en": "Inventory"
+  },
+  "short": "komari-inventory",
+  "description": {
+    "zh-CN": "为每个节点手工维护服务、域名和端口，并按需执行一次性只读扫描。",
+    "en": "Maintain services, domains, and ports for each node with optional one-shot read-only scans."
+  },
+  "author": "a1",
+  "version": "0.1.1",
+  "entry": "script.js",
+  "komari": ">1.4.3",
+  "permissions": {
+    "node": true,
+    "timeout": 15
+  },
+  "pages": [
+    {
+      "file": "pages/admin.html",
+      "title": {
+        "zh-CN": "资产台账",
+        "en": "Inventory"
+      },
+      "visibility": "admin"
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<div class="inventory-shell">
+  <header class="inventory-header">
+    <div>
+      <h1>资产台账</h1>
+      <p>手工维护节点上的服务、域名和端口；需要时执行一次只读扫描。</p>
+    </div>
+    <div class="inventory-node-picker">
+      <label for="node-select">节点</label>
+      <select id="node-select" aria-label="选择节点"></select>
+    </div>
+  </header>
+
+  <div id="message" class="inventory-message" role="status" aria-live="polite" hidden></div>
+
+  <section class="inventory-actions" aria-label="操作">
+    <button id="save-button" class="primary" type="button">保存台账</button>
+    <button id="scan-button" type="button">扫描一次</button>
+    <span id="timestamps"></span>
+  </section>
+
+  <section class="inventory-panel">
+    <div class="inventory-section-heading">
+      <div>
+        <h2>服务</h2>
+        <p>记录业务服务；扫描结果不会自动覆盖人工内容。</p>
+      </div>
+      <button id="add-service" type="button">新增服务</button>
+    </div>
+    <div class="inventory-table-wrap">
+      <table>
+        <thead><tr><th>名称</th><th>类型</th><th>状态</th><th>镜像/版本</th><th>端口</th><th>备注</th><th></th></tr></thead>
+        <tbody id="services-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="inventory-panel">
+    <div class="inventory-section-heading">
+      <div>
+        <h2>域名</h2>
+        <p>扫描只能发现常见反向代理配置，人工确认的数据优先。</p>
+      </div>
+      <button id="add-domain" type="button">新增域名</button>
+    </div>
+    <div class="inventory-table-wrap">
+      <table>
+        <thead><tr><th>域名</th><th>对应服务</th><th>来源</th><th>备注</th><th></th></tr></thead>
+        <tbody id="domains-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="inventory-panel">
+    <div class="inventory-section-heading">
+      <div>
+        <h2>端口</h2>
+        <p>这里的扫描状态表示本机正在监听，不等同于公网可访问。</p>
+      </div>
+      <button id="add-port" type="button">新增端口</button>
+    </div>
+    <div class="inventory-table-wrap">
+      <table>
+        <thead><tr><th>协议</th><th>监听地址</th><th>端口</th><th>范围</th><th>对应服务</th><th>备注</th><th></th></tr></thead>
+        <tbody id="ports-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="inventory-panel">
+    <div class="inventory-section-heading"><div><h2>节点备注</h2><p>用途、供应商、续费信息或其它说明。</p></div></div>
+    <textarea id="node-notes" rows="5" maxlength="5000" placeholder="输入节点备注"></textarea>
+  </section>
+
+  <section id="scan-panel" class="inventory-panel" hidden>
+    <div class="inventory-section-heading">
+      <div>
+        <h2>最近扫描结果</h2>
+        <p id="scan-summary"></p>
+      </div>
+      <button id="import-selected" class="primary" type="button">导入选中项</button>
+    </div>
+    <div id="scan-warnings" class="inventory-warnings" hidden></div>
+    <div id="scan-results"></div>
+  </section>
+</div>
+
+<link rel="stylesheet" href="./admin.css">
+<script src="./admin.js"></script>
