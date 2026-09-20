@@ -137,3 +137,18 @@ func TestStaticRestrictedDoesNotServeCustomAssetOverride(t *testing.T) {
 		t.Fatal("restricted index still registers a service worker")
 	}
 }
+
+func TestStaticDoesNotFallbackMissingAPIToSPA(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	Static(router.Group("/"), func(handlers ...gin.HandlerFunc) {
+		router.NoRoute(handlers...)
+	})
+
+	request := httptest.NewRequest("GET", "/api/admin/client/example/terminal", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != 404 {
+		t.Fatalf("missing API status = %d, want 404", recorder.Code)
+	}
+}

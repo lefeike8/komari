@@ -303,6 +303,12 @@ func static(r *gin.RouterGroup, noRoute func(handlers ...gin.HandlerFunc), force
 			c.Status(http.StatusNotFound)
 			return
 		}
+		// Missing API endpoints must stay real 404s. Returning the SPA shell here
+		// makes removed or mistyped security-sensitive routes look available.
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.Status(http.StatusNotFound)
+			return
+		}
 		//
 		func() {
 			tempKey := c.Query("temp_key")
