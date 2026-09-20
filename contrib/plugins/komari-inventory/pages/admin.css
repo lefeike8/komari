@@ -16,34 +16,42 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--inv-bg); color: var(--inv-text); }
 button, input, select, textarea { font: inherit; color: inherit; }
-button, select, input, textarea { border: 1px solid var(--inv-border); border-radius: 8px; background: var(--inv-input); }
-button { padding: 8px 12px; cursor: pointer; }
+button, select, input, textarea { border: 1px solid var(--inv-border); border-radius: 6px; background: var(--inv-input); }
+button { min-height: 32px; padding: 5px 10px; cursor: pointer; }
 button:hover { border-color: var(--inv-primary); }
 button:disabled { cursor: wait; opacity: .6; }
 button.primary { background: var(--inv-primary); color: var(--inv-primary-text); border-color: var(--inv-primary); }
 button.danger { color: var(--inv-danger); border-color: transparent; background: transparent; }
-input, select, textarea { width: 100%; padding: 8px 9px; }
+input, select, textarea { width: 100%; padding: 5px 7px; }
 textarea { resize: vertical; }
 
-.inventory-shell { max-width: 1280px; margin: 0 auto; padding: 24px; }
-.inventory-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.inventory-shell { max-width: 1440px; margin: 0 auto; padding: 14px 18px 24px; }
+.inventory-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 8px; }
 h1, h2 { margin: 0; font-weight: 600; }
-h1 { font-size: 24px; }
-h2 { font-size: 17px; }
-p { margin: 6px 0 0; color: var(--inv-muted); }
-.inventory-node-picker { min-width: 280px; }
-.inventory-node-picker label { display: block; margin-bottom: 6px; color: var(--inv-muted); }
-.inventory-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+h1 { font-size: 22px; line-height: 1.2; }
+h2 { font-size: 16px; line-height: 1.2; }
+p { margin: 3px 0 0; color: var(--inv-muted); font-size: 13px; }
+.inventory-node-picker { display: grid; grid-template-columns: auto minmax(190px, 260px); align-items: center; gap: 8px; min-width: 0; }
+.inventory-node-picker label { color: var(--inv-muted); font-size: 13px; }
+.inventory-node-picker select { height: 34px; }
+.inventory-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .inventory-actions span { margin-left: auto; color: var(--inv-muted); font-size: 13px; }
-.inventory-message { margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--inv-border); border-radius: 8px; background: var(--inv-panel); }
+.inventory-message { margin-bottom: 8px; padding: 7px 10px; border: 1px solid var(--inv-border); border-radius: 6px; background: var(--inv-panel); font-size: 13px; }
 .inventory-message.error { color: var(--inv-danger); }
-.inventory-panel { margin-bottom: 16px; padding: 18px; border: 1px solid var(--inv-border); border-radius: 12px; background: var(--inv-panel); }
-.inventory-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
+.inventory-panel { margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--inv-border); border-radius: 9px; background: var(--inv-panel); }
+.inventory-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 5px; }
+.inventory-section-heading > div { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.inventory-section-heading p { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-section-heading button { flex: 0 0 auto; font-size: 13px; }
 .inventory-table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 820px; }
-th, td { padding: 8px 6px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--inv-border); }
-th { color: var(--inv-muted); font-size: 13px; font-weight: 500; }
-td:last-child, th:last-child { width: 56px; text-align: right; }
+table { width: 100%; border-collapse: collapse; min-width: 820px; table-layout: fixed; }
+th, td { padding: 4px 5px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--inv-border); }
+th { color: var(--inv-muted); font-size: 12px; font-weight: 500; line-height: 1.2; }
+td input, td select { height: 32px; font-size: 13px; }
+td:last-child, th:last-child { width: 42px; padding-right: 0; text-align: right; }
+td:last-child button { min-height: 28px; padding: 3px 5px; font-size: 12px; }
+.inventory-panel table tbody tr:last-child td { border-bottom: 0; }
+.inventory-panel > textarea:not(.inventory-command) { min-height: 58px; max-height: 140px; font-size: 13px; }
 .inventory-warnings { margin-bottom: 12px; padding: 10px 12px; background: var(--inv-warning); border-radius: 8px; }
 .inventory-command-panel { border-color: color-mix(in srgb, var(--inv-primary) 38%, var(--inv-border)); }
 .inventory-command { min-height: 150px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre; }
@@ -54,15 +62,17 @@ td:last-child, th:last-child { width: 56px; text-align: right; }
 .scan-row { display: grid; grid-template-columns: 28px minmax(140px, 1.1fr) minmax(120px, .8fr) minmax(160px, 1.5fr); gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid var(--inv-border); }
 .scan-row input[type="checkbox"] { width: 18px; height: 18px; }
 .scan-row small { color: var(--inv-muted); }
-.empty { padding: 16px 4px; color: var(--inv-muted); }
+.empty { padding: 9px 4px; color: var(--inv-muted); font-size: 13px; }
 
 @media (max-width: 720px) {
   .inventory-shell { padding: 14px; }
   .inventory-header { align-items: stretch; flex-direction: column; }
-  .inventory-node-picker { min-width: 0; }
+  .inventory-node-picker { grid-template-columns: 1fr; gap: 4px; min-width: 0; }
   .inventory-actions span { width: 100%; margin-left: 0; }
-  .inventory-panel { padding: 14px; }
-  .inventory-section-heading { align-items: flex-start; }
+  .inventory-panel { padding: 10px; }
+  .inventory-section-heading { align-items: center; }
+  .inventory-section-heading > div { display: block; }
+  .inventory-section-heading p { white-space: normal; }
   .scan-row { grid-template-columns: 28px 1fr; }
   .scan-row > :nth-child(n+3) { grid-column: 2; }
 }

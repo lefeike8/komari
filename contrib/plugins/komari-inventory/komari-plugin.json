@@ -10,7 +10,7 @@
     "en": "Maintain node inventory and safely import read-only scans with single-use commands."
   },
   "author": "a1",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "entry": "script.js",
   "komari": ">1.4.3",
   "permissions": {
