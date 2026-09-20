@@ -19,10 +19,10 @@ import (
 // low-level capability tests. Production builds always keep it enabled.
 var enforceMonitorOnlyPluginPolicy = true
 
-// komari-passkey 0.1.13 is the only pinned exception. It currently needs
-// HTML injection and system RPC to add passkey login to the stock frontend.
+// komari-passkey 0.1.13-deer.1 is the only pinned exception. It currently
+// needs HTML injection and system RPC to add passkey login to the frontend.
 // Any byte-level change invalidates the pin and prevents the plugin loading.
-const pinnedPasskeyPackageSHA256 = "d912fc4736b7f9aa4bc1e9c6b99ed4acf85c52972267f41dda2322948226e340"
+const pinnedPasskeyPackageSHA256 = "58ffa68a908fb52843a7347de902d187f6a78cbf71975ad8479547fbaae1021a"
 
 func forbiddenPluginPermissions(p models.PluginPermissions) []string {
 	var names []string
