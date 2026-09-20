@@ -1,0 +1,324 @@
+diff --git a/src/config/menuConfig.json b/src/config/menuConfig.json
+--- a/src/config/menuConfig.json
++++ b/src/config/menuConfig.json
+@@ -10,12 +10,6 @@
+       "path": "/admin/servers",
+       "icon": "Server"
+     },
+-    {
+-      "labelKey": "operations.workbench",
+-      "path": "/terminal",
+-      "icon": "SquareTerminal",
+-      "newTab": true
+-    },
+     {
+       "labelKey": "operations.title",
+       "path": "/admin/ping",
+@@ -26,11 +20,6 @@
+           "path": "/admin/ping",
+           "icon": "Activity"
+         },
+-        {
+-          "labelKey": "exec.title",
+-          "path": "/admin/exec",
+-          "icon": "Code"
+-        },
+         {
+           "labelKey": "sessions.title",
+           "path": "/admin/sessions",
+@@ -119,11 +108,6 @@
+           "path": "/admin/settings/sign-on",
+           "icon": "CircleArrowRight"
+         },
+-        {
+-          "labelKey": "settings.xtermjs.title",
+-          "path": "/admin/settings/xtermjs",
+-          "icon": "Terminal"
+-        },
+         {
+           "labelKey": "settings.metrics.title",
+           "path": "/admin/settings/metrics",
+diff --git a/src/pages/admin/index.tsx b/src/pages/admin/index.tsx
+--- a/src/pages/admin/index.tsx
++++ b/src/pages/admin/index.tsx
+@@ -31,7 +31,6 @@ import {
+   Plus,
+   Radar,
+   Settings,
+-  Terminal,
+   Trash2Icon,
+ } from "lucide-react";
+ import { Link } from "react-router-dom";
+@@ -97,7 +96,7 @@ const NodeDetailsPage = () => {
+ 
+ const Layout = () => {
+   const { nodeDetail, isLoading, error, refresh } = useNodeDetails();
+-  const { settings, loading: settingsLoading } = useSettings();
++  const { settings } = useSettings();
+   const [searchTerm, setSearchTerm] = useState("");
+   const [selectedNodes, setSelectedNodes] = useState<string[]>([]);
+   const filteredNodes = Array.isArray(nodeDetail)
+@@ -124,8 +123,6 @@ const Layout = () => {
+         searchTerm={searchTerm}
+         setSearchTerm={setSearchTerm}
+         selectedNodes={selectedNodes}
+-        settings={settings}
+-        settingsLoading={settingsLoading}
+       />
+ 
+       {isEmpty ? (
+@@ -1047,8 +1044,9 @@ const AutoDiscoverySection = ({
+         <Copy size={16} />
+         {t("common.copy")}
+       </Button>
+     </Flex>
+   );
+ };
++void AutoDiscoverySection;
+ 
+ const Header = ({
+@@ -1055,14 +1052,10 @@ const Header = ({
+   searchTerm,
+   setSearchTerm,
+   selectedNodes,
+-  settings,
+-  settingsLoading,
+ }: {
+   searchTerm: string;
+   setSearchTerm: (term: string) => void;
+   selectedNodes: string[];
+-  settings: any;
+-  settingsLoading: boolean;
+ }) => {
+   const { t } = useTranslation();
+   const { refresh } = useNodeDetails();
+@@ -1127,10 +1120,6 @@ const Header = ({
+                 {t("admin.nodeTable.addNode")}
+               </Button>
+             </Flex>
+-            <AutoDiscoverySection
+-              settings={settings}
+-              loading={settingsLoading}
+-            />
+           </Dialog.Content>
+         </Dialog.Root>
+       </Flex>
+@@ -1437,7 +1427,6 @@ const ActionButtons = ({
+   settings: any;
+   isSnapshotBackend: boolean;
+ }) => {
+-  const { t } = useTranslation();
+   return (
+     <div className="flex items-center gap-4">
+       <GenerateCommandButton
+@@ -1445,15 +1434,6 @@ const ActionButtons = ({
+         settings={settings}
+         isSnapshotBackend={isSnapshotBackend}
+       />
+-      <IconButton
+-        title={t("terminal.title")}
+-        variant="ghost"
+-        onClick={() => {
+-          window.open(`/terminal?uuid=${node.uuid}`, "_blank");
+-        }}
+-      >
+-        <Terminal size="18" />
+-      </IconButton>
+       <EditButton node={node} />
+       <BillingButton node={node} />
+       <DeleteButton node={node} />
+@@ -1509,7 +1489,6 @@ function DeleteButton({ node }: { node: NodeDetail }) {
+   );
+ }
+ type InstallOptions = {
+-  disableWebSsh: boolean;
+   disableAutoUpdate: boolean;
+   ignoreUnsafeCert: boolean;
+   memoryIncludeCache: boolean;
+@@ -1537,7 +1516,6 @@ function GenerateCommandButton({
+   const [selectedPlatform, setSelectedPlatform] =
+     React.useState<Platform>("linux");
+   const [installOptions, setInstallOptions] = React.useState<InstallOptions>({
+-    disableWebSsh: false,
+     disableAutoUpdate: false,
+     ignoreUnsafeCert: false,
+     memoryIncludeCache: false,
+@@ -1589,11 +1567,8 @@ function GenerateCommandButton({
+       return `http://${settings.script_domain.replace(/\/+$/, "")}`;
+     }();
+     const token = node.token || "";
+-    let args = ["-e", host, "-t", token];
++    let args = ["-e", host, "-t", token, "--disable-web-ssh"];
+     // 根据安装选项生成参数
+-    if (installOptions.disableWebSsh) {
+-      args.push("--disable-web-ssh");
+-    }
+     if (installOptions.disableAutoUpdate) {
+       args.push("--disable-auto-update");
+     }
+@@ -1764,28 +1739,6 @@ function GenerateCommandButton({
+               {t("admin.nodeTable.installOptions", "安装选项")}
+             </label>
+             <div className="grid grid-cols-2 gap-2">
+-              <Flex gap="2" align="center">
+-                <Checkbox
+-                  checked={installOptions.disableWebSsh}
+-                  onCheckedChange={(checked) => {
+-                    setInstallOptions((prev) => ({
+-                      ...prev,
+-                      disableWebSsh: Boolean(checked),
+-                    }));
+-                  }}
+-                />
+-                <label
+-                  className="text-sm font-normal"
+-                  onClick={() => {
+-                    setInstallOptions((prev) => ({
+-                      ...prev,
+-                      disableWebSsh: !prev.disableWebSsh,
+-                    }));
+-                  }}
+-                >
+-                  {t("admin.nodeTable.disableWebSsh")}
+-                </label>
+-              </Flex>
+               <Flex gap="2" align="center">
+                 <Checkbox
+                   checked={installOptions.disableAutoUpdate}
+diff --git a/src/pages/admin/settings/general.tsx b/src/pages/admin/settings/general.tsx
+--- a/src/pages/admin/settings/general.tsx
++++ b/src/pages/admin/settings/general.tsx
+@@ -3,14 +3,11 @@ import { Button, Code, Flex, Text, TextField } from "@radix-ui/themes";
+ import {
+   updateSettingsWithToast,
+   useSettings,
+-  type SettingsResponse,
+ } from "@/lib/api";
+ import {
+   SettingCardButton,
+   SettingCardCollapse,
+-  SettingCardLabel,
+   SettingCardSelect,
+-  SettingCardShortTextInput,
+   SettingCardSwitch,
+ } from "@/components/admin/SettingCard";
+ import React from "react";
+@@ -33,10 +30,6 @@ export default function GeneralSettings() {
+ 
+   return (
+     <>
+-      <SettingCardLabel>
+-        {t("settings.general.auto_discovery")}
+-      </SettingCardLabel>
+-      <ApiCard settings={settings} />
+       <label className="text-xl font-bold">{t("settings.geoip.title")}</label>
+       <SettingCardSwitch
+         title={t("settings.geoip.enable_title")}
+@@ -121,74 +114,3 @@ export default function GeneralSettings() {
+     </>
+   );
+ }
+-
+-const ApiCard = ({ settings }: { settings: SettingsResponse }) => {
+-
+-  //const { settings } = useSettings();
+-  const { t } = useTranslation();
+-  const [apiValues, setApiValues] = React.useState<string>(
+-    settings?.auto_discovery_key || ""
+-  );
+-
+-  // 生成32位随机字符串
+-  const generateRandomString = () => {
+-    const chars =
+-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+-    let result = "";
+-    for (let i = 0; i < 24; i++) {
+-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+-    }
+-    return result;
+-  };
+-
+-  // 处理生成按钮点击
+-  const handleGenerateApiKey = () => {
+-    const newApiKey = generateRandomString();
+-    setApiValues(newApiKey);
+-  };
+-
+-  // 初始化API值
+-  React.useEffect(() => {
+-    if (settings?.auto_discovery_key) {
+-      setApiValues(settings.auto_discovery_key);
+-    }
+-  }, [settings?.auto_discovery_key]);
+-
+-  return (
+-    <SettingCardShortTextInput
+-      title={t("settings.general.auto_discovery_key")}
+-      description={t("settings.general.auto_discovery_key_description")}
+-      value={apiValues}
+-      onChange={(e) => setApiValues(e.target.value)}
+-      OnSave={async (values) => {
+-        if (!values) {
+-          await updateSettingsWithToast({ auto_discovery_key: "" }, t);
+-          return;
+-        }
+-        if (values.length < 12) {
+-          toast.error(t("settings.api.key_length_error"));
+-          return;
+-        }
+-        await updateSettingsWithToast({ auto_discovery_key: values }, t);
+-      }}
+-    >
+-      <div className="flex flex-row gap-2 justify-start items-center">
+-        <Button variant="soft" color="green" onClick={handleGenerateApiKey}>
+-          {t("common.generate")}
+-        </Button>
+-        <Button
+-          variant="soft"
+-          color="mint"
+-          onClick={() => {
+-            window.open(
+-              "https://komari-document.pages.dev/install/agent-ad.html",
+-              "_blank"
+-            );
+-          }}
+-        >
+-          {t("common.help")}
+-        </Button>
+-      </div>
+-    </SettingCardShortTextInput>
+-  );
+-};
+diff --git a/src/routes.ts b/src/routes.ts
+--- a/src/routes.ts
++++ b/src/routes.ts
+@@ -185,12 +185,6 @@ export const routes: RouteObject[] = [
+               lazy(() => import("./pages/admin/settings/general"))
+             ),
+           },
+-          {
+-            path: "xtermjs",
+-            element: React.createElement(
+-              lazy(() => import("./pages/admin/settings/xtermjs"))
+-            ),
+-          },
+           {
+             path: "metrics",
+             element: React.createElement(
+@@ -255,16 +249,8 @@ export const routes: RouteObject[] = [
+         path: "pprof",
+         element: React.createElement(lazy(() => import("./pages/admin/pprof"))),
+       },
+-      {
+-        path: "exec",
+-        element: React.createElement(lazy(() => import("./pages/admin/exec"))),
+-      }
+     ],
+   },
+-  {
+-    path: "/terminal",
+-    element: React.createElement(lazy(() => import("./pages/terminal"))),
+-  },
+   {
+     path: "/manage/*",
+     element: React.createElement(lazy(() => import("./pages/manage"))),

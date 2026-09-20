@@ -42,6 +42,7 @@ runs:
         else
           git clone --depth=1 "${{ inputs.repository }}" komari-web
         fi
+        git -C komari-web apply "$GITHUB_WORKSPACE/contrib/komari-web-monitor-only.patch"
         cd komari-web
         npm install
         npm run build

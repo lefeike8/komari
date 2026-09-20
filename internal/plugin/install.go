@@ -60,6 +60,13 @@ func InstallZip(zipPath string) (models.Plugin, error) {
 	if err := validateManifest(&info); err != nil {
 		return info, err
 	}
+	packageHash, err := hashPluginArchive(r.File)
+	if err != nil {
+		return info, fmt.Errorf("failed to hash plugin package: %v", err)
+	}
+	if err := validatePluginSecurityPolicy(info, packageHash); err != nil {
+		return info, err
+	}
 	if err := CheckKomariVersion(info.Komari); err != nil {
 		return info, err
 	}

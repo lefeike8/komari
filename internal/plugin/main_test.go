@@ -11,6 +11,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	enforceMonitorOnlyPluginPolicy = false
 	flags.DatabaseType = flags.DatabaseTypeSQLite
 	flags.DatabaseFile = "file:komari_plugin_test?mode=memory&cache=shared"
 	db := dbcore.GetDBInstance()

@@ -29,6 +29,13 @@ func readManifest(dir string) (models.Plugin, error) {
 	if err := validateManifest(&info); err != nil {
 		return info, err
 	}
+	packageHash, err := hashPluginDirectory(dir)
+	if err != nil {
+		return info, fmt.Errorf("hash plugin package: %w", err)
+	}
+	if err := validatePluginSecurityPolicy(info, packageHash); err != nil {
+		return info, err
+	}
 	return info, nil
 }
 
